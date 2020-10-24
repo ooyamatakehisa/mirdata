@@ -11,6 +11,17 @@ from mirdata import utils
 DATASETS = mirdata.__all__
 
 
+def get_dataset(dataset, data_home=None):
+    if dataset not in DATASETS:
+        raise ValueError(
+            "{} is not a valid dataset in mirdata. Valid datsets are:\n{}".format(
+                dataset, ",".join(DATASETS)
+            )
+        )
+    module = importlib.import_module("mirdata.{}".format(dataset))
+    return module.Dataset(data_home)
+
+
 class Dataset(object):
     """mirdata Dataset object
 
@@ -35,39 +46,29 @@ class Dataset(object):
 
     """
 
-    def __init__(self, dataset, data_home=None):
+    def __init__(self, data_home=None):
         """Inits a dataset by name and data location"""
-        if dataset not in DATASETS:
-            raise ValueError(
-                "{} is not a valid dataset in mirdata. Valid datsets are:\n{}".format(
-                    dataset, ",".join(DATASETS)
-                )
-            )
-        module = importlib.import_module("mirdata.{}".format(dataset))
-        self.dataset = dataset
-        self.bibtex = getattr(module, "BIBTEX", "")
-        self._remotes = getattr(module, "REMOTES", {})
-        self._index = module.DATA.index
-        self._download_info = getattr(module, "DOWNLOAD_INFO", None)
-        self._track_object = getattr(module, "Track", None)
-        self.dataset_dir = module.DATASET_DIR
-        self._download_fn = getattr(module, "_download", download_utils.downloader)
-        self.readme = module.__doc__
+
+        self.name = None
+        self.bibtex = None
+        self._remotes = None
+        self._index = None
+        self._download_info = None
+        self._track_object = None
+        self.dataset_dir = None
+        self._download_fn = download_utils.downloader
 
         if data_home is None:
             self.data_home = self.default_path
         else:
             self.data_home = data_home
 
-        # this is a hack to be able to have dataset-specific docstrings
-        self.track = lambda track_id: self._track(track_id)
-        self.track.__doc__ = self._track_object.__doc__  # set the docstring
+        self.track = lambda track_id: self._Track(track_id, self.data_home, self)
+        self.track.__doc__ = self._Track.__doc__
 
-        # inherit any public load functions from the module
-        for method_name in dir(module):
-            if method_name.startswith("load_"):
-                method = getattr(module, method_name)
-                setattr(self, method_name, method)
+    class _Track:
+        def __init__(self, track_id, data_home, dataset):
+            raise NotImplementedError
 
     @property
     def default_path(self):
